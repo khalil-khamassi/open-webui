@@ -474,7 +474,13 @@ log.setLevel(SRC_LOG_LEVELS["MAIN"])
 class SPAStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
+            # Add CORS headers for static files
+            if hasattr(response, 'headers'):
+                response.headers["Access-Control-Allow-Origin"] = "*"
+                response.headers["Access-Control-Allow-Methods"] = "GET"
+                response.headers["Access-Control-Allow-Headers"] = "*"
+            return response
         except (HTTPException, StarletteHTTPException) as ex:
             if ex.status_code == 404:
                 if path.endswith(".js"):
@@ -484,6 +490,29 @@ class SPAStaticFiles(StaticFiles):
                     return await super().get_response("index.html", scope)
             else:
                 raise ex
+
+
+class CORSStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        # Add CORS headers for static files
+        if hasattr(response, 'headers'):
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+    
+    async def options(self, path: str, scope):
+        """Handle OPTIONS requests for static files"""
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "86400",
+            }
+        )
 
 
 print(
@@ -1171,6 +1200,42 @@ app.add_middleware(
 )
 
 
+class StaticCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Add CORS headers for static file requests
+        if request.url.path.startswith("/static/") or request.url.path in ["/favicon.ico", "/favicon.png"]:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Max-Age"] = "86400"
+        
+        return response
+
+
+class GlobalCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Handle preflight OPTIONS requests globally
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Max-Age": "86400",
+                }
+            )
+        
+        response = await call_next(request)
+        return response
+
+
+app.add_middleware(StaticCORSMiddleware)
+app.add_middleware(GlobalCORSMiddleware)
+
+
 app.mount("/ws", socket_app)
 
 
@@ -1574,6 +1639,7 @@ async def get_app_config(request: Request):
                     "enable_direct_connections": app.state.config.ENABLE_DIRECT_CONNECTIONS,
                     "enable_channels": app.state.config.ENABLE_CHANNELS,
                     "enable_notes": app.state.config.ENABLE_NOTES,
+
                     "enable_web_search": app.state.config.ENABLE_WEB_SEARCH,
                     "enable_code_execution": app.state.config.ENABLE_CODE_EXECUTION,
                     "enable_code_interpreter": app.state.config.ENABLE_CODE_INTERPRETER,
@@ -1813,7 +1879,104 @@ async def healthcheck_with_db():
     return {"status": True}
 
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+@app.options("/favicon.ico")
+async def options_favicon():
+    """Handle preflight request for favicon.ico"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
+
+@app.get("/favicon.ico")
+async def get_favicon():
+    """Serve favicon with proper CORS headers"""
+    favicon_path = STATIC_DIR / "favicon.png"
+    if favicon_path.exists():
+        return FileResponse(
+            favicon_path,
+            media_type="image/x-icon",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+    else:
+        # Fallback to default favicon if custom one doesn't exist
+        raise HTTPException(status_code=404, detail="Favicon not found")
+
+
+@app.options("/static/favicon.png")
+async def options_static_favicon():
+    """Handle preflight request for static favicon.png"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
+
+@app.get("/static/favicon.png")
+async def get_static_favicon():
+    """Serve static favicon.png with proper CORS headers"""
+    favicon_path = STATIC_DIR / "favicon.png"
+    if favicon_path.exists():
+        return FileResponse(
+            favicon_path,
+            media_type="image/png",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+    else:
+        raise HTTPException(status_code=404, detail="Favicon not found")
+
+
+@app.options("/favicon.png")
+async def options_favicon_png():
+    """Handle preflight request for favicon.png"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
+
+@app.get("/favicon.png")
+async def get_favicon_png():
+    """Serve favicon.png with proper CORS headers"""
+    favicon_path = STATIC_DIR / "favicon.png"
+    if favicon_path.exists():
+        return FileResponse(
+            favicon_path,
+            media_type="image/png",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+    else:
+        raise HTTPException(status_code=404, detail="Favicon not found")
+
+
+app.mount("/static", CORSStaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/cache/{path:path}")

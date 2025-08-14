@@ -633,6 +633,46 @@
 			</div>
 		{/if}
 
+		<div class="px-1.5 flex justify-center text-gray-800 dark:text-gray-200">
+			<a
+				class="grow flex items-center space-x-3 rounded-lg px-2 py-[7px] hover:bg-gray-100 dark:hover:bg-gray-900 transition"
+				href="/azure_devops"
+				on:click={() => {
+					selectedChatId = null;
+					chatId.set('');
+
+					if ($mobile) {
+						showSidebar.set(false);
+					}
+				}}
+				draggable="false"
+			>
+				<div class="self-center">
+					<svg
+						class="size-4"
+						aria-hidden="true"
+						xmlns="http://www.w3.org/2000/svg"
+						width="24"
+						height="24"
+						fill="none"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke="currentColor"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+						/>
+					</svg>
+				</div>
+
+				<div class="flex self-center translate-y-[0.5px]">
+					<div class=" self-center text-sm font-primary">{$i18n.t('Azure DevOps')}</div>
+				</div>
+			</a>
+		</div>
+
 		{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models || $user?.permissions?.workspace?.knowledge || $user?.permissions?.workspace?.prompts || $user?.permissions?.workspace?.tools}
 			<div class="px-1.5 flex justify-center text-gray-800 dark:text-gray-200">
 				<a
