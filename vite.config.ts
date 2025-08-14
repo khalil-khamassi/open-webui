@@ -28,5 +28,16 @@ export default defineConfig({
 	},
 	esbuild: {
 		pure: process.env.ENV === 'dev' ? [] : ['console.log', 'console.debug']
+	},
+	resolve: {
+		alias: {
+			'y-protocols/awareness': 'y-protocols/awareness.js'
+		}
+	},
+	optimizeDeps: {
+		exclude: ['y-protocols/awareness']
+	},
+	ssr: {
+		external: ['y-protocols/awareness']
 	}
 });
