@@ -1191,12 +1191,16 @@ async def inspect_websocket(request: Request, call_next):
     return await call_next(request)
 
 
+# For development, allow the frontend origin with credentials
+if "http://localhost:5173" not in CORS_ALLOW_ORIGIN:
+    CORS_ALLOW_ORIGIN.append("http://localhost:5173")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOW_ORIGIN,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
 )
 
 
@@ -1218,15 +1222,26 @@ class GlobalCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Handle preflight OPTIONS requests globally
         if request.method == "OPTIONS":
-            return Response(
-                status_code=200,
-                headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Max-Age": "86400",
-                }
-            )
+            # Get the origin from the request
+            origin = request.headers.get("Origin")
+            
+            # Check if the origin is allowed
+            if origin in CORS_ALLOW_ORIGIN:
+                return Response(
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Max-Age": "86400",
+                    }
+                )
+            else:
+                return Response(
+                    status_code=400,
+                    content="Origin not allowed"
+                )
         
         response = await call_next(request)
         return response
